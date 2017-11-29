@@ -105,17 +105,10 @@ void remove_n(char* source)
 
 void get_uid(char * str, int num, char **input){
     int i;
-    char send[200];
     for(i=0;i<3;i++){
         sgets(str,200,input);
     }
     remove_n(str);
-    sprintf(send,"sudo curl -k --data \"entry.859460154=%s\" https://docs.google.com/forms/d/1tfhcdKmafJVPrrW994O3eSQbdox4bUbeljjHI3thFUg/formResponse > log_out.txt",str);
-    system(send);
-    sprintf(send,"sudo raspistill -t 5000 -o image.jpg");
-    system(send);
-    sprintf(send,"gdrive upload -p 1MmsFA-qAY-Ff6pUxvZ7xo9m2IK7E7oUH image.jpg");
-    system(send);
 }
 
 // Funções de Polling
@@ -147,7 +140,7 @@ main(int argc, const char *argv[])
   // Display libnfc version
   const char *acLibnfcVersion = nfc_version();
 
-  printf("%s uses libnfc %s\n", argv[0], acLibnfcVersion);
+  printf("%s usa o libnfc %s\n", argv[0], acLibnfcVersion);
   if (argc != 1) {
     if ((argc == 2) && (0 == strcmp("-v", argv[1]))) {
       verbose = true;
@@ -171,18 +164,21 @@ main(int argc, const char *argv[])
   nfc_target nt;
   int res = 0;
   char *s;
-  char uid[200];
+  char uid[200],send[200];
+  int i=0;
 
+
+while(1){
   nfc_init(&context);
   if (context == NULL) {
-    ERR("Unable to init libnfc (malloc)");
+    ERR("Não foi possível iniciar a biblioteca libnfc (malloc)");
     exit(EXIT_FAILURE);
   }
 
   pnd = nfc_open(context, NULL);
 
   if (pnd == NULL) {
-    ERR("%s", "Unable to open NFC device.");
+    ERR("%s", "Não foi possível abrir o dispositivo NFC.");
     nfc_exit(context);
     exit(EXIT_FAILURE);
   }
@@ -194,8 +190,8 @@ main(int argc, const char *argv[])
     exit(EXIT_FAILURE);
   }
 
-  printf("NFC reader: %s opened\n", nfc_device_get_name(pnd));
-  printf("NFC device will poll during %ld ms (%u pollings of %lu ms for %" PRIdPTR " modulations)\n", (unsigned long) uiPollNr * szModulations * uiPeriod * 150, uiPollNr, (unsigned long) uiPeriod * 150, szModulations);
+  printf("Leitor NFC: %s aberto\n", nfc_device_get_name(pnd));
+  printf("Esperando leitura do cartão...\n");
   if ((res = nfc_initiator_poll_target(pnd, nmModulations, szModulations, uiPollNr, uiPeriod, &nt))  < 0) {
     nfc_perror(pnd, "nfc_initiator_poll_target");
     nfc_close(pnd);
@@ -206,19 +202,35 @@ main(int argc, const char *argv[])
   if (res > 0) {
     str_nfc_target(&s, &nt, verbose);
     printf("%s", s);
-    get_uid(uid,200,&s);    
+    get_uid(uid,200,&s);
 
-    printf("Waiting for card removing...");
+    printf("Enviando dados para o Google Forms...\n");
+    sprintf(send,"sudo curl -k --data \"entry.859460154=%s\" https://docs.google.com/forms/d/1tfhcdKmafJVPrrW994O3eSQbdox4bUbeljjHI3thFUg/formResponse > log_out.txt",uid);
+    system(send);
+
+    printf("Sorria para a foto :)!\n");
+    sprintf(send,"sudo raspistill -t 5000 -o image%d.jpg",i);
+    system(send);
+
+    printf("Enviando foto para o Google Drive...\n");
+    sprintf(send,"gdrive upload -p 1MmsFA-qAY-Ff6pUxvZ7xo9m2IK7E7oUH image%d.jpg",i);
+    system(send);
+    i++;
+
+    printf("Esperando cartão ser removido...");
     fflush(stdout);
     while (0 == nfc_initiator_target_is_present(pnd, NULL)) {}
     nfc_perror(pnd, "nfc_initiator_target_is_present");
-    printf("done.\n");
+    printf("feito.\n");
   } else {
-    printf("No target found.\n");
+    printf("nenhum alvo encontrado.\n");
   }
 
   nfc_close(pnd);
   nfc_exit(context);
+  system("clear");
+}
+
   exit(EXIT_SUCCESS);
 }
 
